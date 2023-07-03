@@ -1,0 +1,16 @@
+on: [push]
+
+name: Documentation coverage
+
+jobs:
+  print_doc_coverage:
+    name: Print documentation coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+      - id: coverage
+        uses: bewee/rustdoc-coverage-action@v1
+      - run: echo ${{ steps.coverage.outputs.documented }}
