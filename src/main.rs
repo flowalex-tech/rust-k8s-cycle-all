@@ -1,6 +1,8 @@
 extern crate clap;
 extern crate core;
 
+use std::io;
+use std::io::{BufRead, BufReader, stdout};
 use clap::{App, Arg, SubCommand};
 use std::process::{Command, Stdio};
 
@@ -66,22 +68,38 @@ fn main() {
         kubectl_output_child.wait().expect("Failed to filter deployments");
 
         if let Some(sort_output) = sort_output_child.stdout.take() {
-            let head_output_child = Command::new("cut")
+            let mut head_output_child = Command::new("cut")
                 .arg(&["-d", " "])
                 .arg(&["-f", " "])
                 .stdin(sort_output)
                 .stdout(Stdio::piped())
                 .spawn().expect("Failed to sort deployments");
 
-            let head_stdout = head_output_child.wait_with_output().unwrap();
 
             sort_output_child.wait().expect("Failed to sort deployments");
 
-            println!(
-                "K8s Deployment: '{}:\n{}'",
-                directory.display(),
-                String::from_utf8(head_stdout.stdout).unwrap()
-            )
-        }
+            let deployment_list_child = head_output_child.stdout.take().unwrap();
+
+            let deployment_list = BufReader::new(deployment_list_child).lines();
+
+            for mut line in deployment_list {
+
+                let cycle_deployment = Command::new("kubectl")
+                    .arg("rollout")
+                    .arg("restart")
+                    .arg("deployment")
+                    .arg(line.as_mut().unwrap())
+                    .arg("--namespace")
+                    .arg(namespace)
+                    .stdout(Stdio::piped())
+                    .spawn().expect("Failed to restart deployment");
+
+                cycle_deployment.wait_with_output().expect("Failed to restart deployment");
+
+                println!("Restarted deployment: {}", line.unwrap());
+
+                head_output_child.wait().expect("head sort failed")
+            }
         }
     }
+}
