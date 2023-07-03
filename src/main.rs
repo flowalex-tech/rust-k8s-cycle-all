@@ -1,9 +1,8 @@
 extern crate clap;
 extern crate core;
 
-use std::io;
-use std::io::{BufRead, BufReader, stdout};
-use clap::{App, Arg, SubCommand};
+use std::io::{BufRead, BufReader};
+use clap::Arg;
 use std::process::{Command, Stdio};
 
 fn main() {
@@ -57,7 +56,7 @@ fn main() {
         .arg("--namespace")
         .arg(namespace)
         .stdout(Stdio::piped())
-        .spawn().expect("Failed to get deployments");;
+        .spawn().expect("Failed to get deployments");
 
     if let Some(mut kubectl_output) = kubectl_output_child.stdout.take() {
         let mut sort_output_child = Command::new("grep")
