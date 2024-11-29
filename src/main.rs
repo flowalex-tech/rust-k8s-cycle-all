@@ -1,13 +1,15 @@
 extern crate clap;
 extern crate core;
-
+extern crate log;
+use rayon::prelude::*;
 use std::io::{BufRead, BufReader};
 use clap::Arg;
 use std::process::{Command, Stdio};
+use log::{error, info, warn, debug, trace};
 
 fn main() {
     let matches = App::new("cycle_all")
-        .version("0.1.0")
+        .version("0.2.0")
         .about("Cycles all k8s deployments based on a parameter")
         .arg(
             Arg::with_name("param")
@@ -32,14 +34,10 @@ fn main() {
             .help("Cluster to cycle on")
         )
         .get_matches();
-    let param = matches.value_of("param").unwrap();
-    let namespace = matches.value_of("namespace").unwrap();
+}
+fn change_cluster(matches: clap::ArgMatches) {
     let cluster = matches.value_of("cluster").unwrap();
-
-    println!("Param: {}", param);
-    println!("Namespace: {}", namespace);
     println!("Cluster: {}", cluster);
-
     let mut update_context = Command::new("kubectl")
         .arg("config")
         .arg("use-context")
@@ -48,6 +46,17 @@ fn main() {
         .spawn().expect("Failed to change context");
 
     update_context.wait().expect("Failed to change context");
+}
+fn cycle_services(matches: clap::ArgMatches) {
+    let param = matches.value_of("param").unwrap();
+    let namespace = matches.value_of("namespace").unwrap();
+
+
+    println!("Param: {}", param);
+    println!("Namespace: {}", namespace);
+
+
+
 
     let directory = std::env::current_dir().unwrap();
     let mut kubectl_output_child = Command::new("kubectl")
@@ -81,7 +90,8 @@ fn main() {
 
             let deployment_list = BufReader::new(deployment_list_child).lines();
 
-            for mut line in deployment_list {
+            deployment_list.par_bridge().for_each(|i| {
+                let i = i.as_ref().unwrap();
 
                 let cycle_deployment = Command::new("kubectl")
                     .arg("rollout")
@@ -92,13 +102,9 @@ fn main() {
                     .arg(namespace)
                     .stdout(Stdio::piped())
                     .spawn().expect("Failed to restart deployment");
-
-                cycle_deployment.wait_with_output().expect("Failed to restart deployment");
-
                 println!("Restarted deployment: {}", line.unwrap());
+            });
 
-                head_output_child.wait().expect("head sort failed")
-            }
         }
     }
 }
